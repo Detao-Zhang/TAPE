@@ -21,6 +21,7 @@ class simdatset(Dataset):
     def __getitem__(self, index):
         x = torch.from_numpy(self.X[index]).float().to(device)
         y = torch.from_numpy(self.Y[index]).float().to(device)
+        
         return x, y
 
 

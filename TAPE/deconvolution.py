@@ -1,5 +1,6 @@
 import anndata
 import pandas as pd
+import scanpy as sc
 from .simulation import generate_simulated_data
 from .utils import ProcessInputData
 from .train import train_model, predict, reproducibility
@@ -60,7 +61,10 @@ def Deconvolution(necessary_data, real_bulk, sep='\t', variance_threshold=0.98,
             simudata = generate_simulated_data(sc_data=necessary_data, samplenum=5000, d_prior=d_prior, sparse=sparse)
 
         elif type(necessary_data) is anndata.AnnData:
-            simudata = necessary_data
+            if "CellType" in necessary_data.obs.columns:
+                simudata = generate_simulated_data(sc_data=necessary_data, samplenum=5000, d_prior=d_prior, sparse=sparse)
+            else:
+                simudata = necessary_data
 
         elif type(necessary_data) is AutoEncoder:
             raise Exception('Do not accept a model as input')
@@ -99,7 +103,7 @@ def Deconvolution(necessary_data, real_bulk, sep='\t', variance_threshold=0.98,
         Sigm = None
         return Sigm, Pred
 
-def ScadenDeconvolution(necessary_data, real_bulk, sep='\t', sparse=True,
+def ScadenDeconvolution(necessary_data, real_bulk, sep='\t', sparse=True, variance_threshold=0.9,
                         batch_size=128, epochs=128):
     if type(necessary_data) is str:
         postfix = necessary_data.split('.')[-1]
@@ -118,7 +122,10 @@ def ScadenDeconvolution(necessary_data, real_bulk, sep='\t', sparse=True,
             simudata = generate_simulated_data(sc_data=necessary_data, samplenum=5000, sparse=sparse)
 
         elif type(necessary_data) is anndata.AnnData:
-            simudata = necessary_data
+            if "CellType" in necessary_data.obs.columns:
+                simudata = generate_simulated_data(sc_data=necessary_data, samplenum=5000, sparse=sparse)
+            else:
+                simudata = necessary_data
 
         elif type(necessary_data) is AutoEncoder:
             raise Exception('Do not accept a model as input')
@@ -126,7 +133,7 @@ def ScadenDeconvolution(necessary_data, real_bulk, sep='\t', sparse=True,
             raise Exception('Please give the correct input')
 
     train_x, train_y, test_x, genename, celltypes, samplename = \
-        ProcessInputData(simudata, real_bulk, sep=sep, datatype='counts')
+        ProcessInputData(simudata, real_bulk, sep=sep, datatype='counts', variance_threshold=variance_threshold)
     print('training data shape is ', train_x.shape, '\ntest data shape is ', test_x.shape)
     pred = test_scaden(train_x,train_y,test_x,batch_size=batch_size,epochs=epochs)
     pred = pd.DataFrame(pred, columns=celltypes, index=samplename)

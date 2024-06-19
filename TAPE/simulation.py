@@ -1,6 +1,7 @@
 import anndata
 import numpy as np
 import pandas as pd
+import scanpy as sc
 from tqdm import tqdm
 from numpy.random import choice
 
@@ -14,7 +15,10 @@ def generate_simulated_data(sc_data, outname=None,
     # index should be cell names
     # columns should be gene labels
     print('Reading single-cell dataset, this may take 1 min')
-    if '.txt' in sc_data:
+
+    is_anndata = False
+    
+    if type(sc_data) is str and '.txt' in sc_data:
         sc_data = pd.read_csv(sc_data, index_col=0, sep='\t')
         sc_data.dropna(inplace=True)
         sc_data['celltype'] = sc_data.index
@@ -23,7 +27,7 @@ def generate_simulated_data(sc_data, outname=None,
         sc_data.dropna(inplace=True)
         sc_data['celltype'] = sc_data.index
         sc_data.index = range(len(sc_data))
-    elif '.h5ad' in sc_data:
+    elif type(sc_data) is str and '.h5ad' in sc_data:
         print('You are using H5AD format data, please make sure "CellType" occurs in the adata.obs')
         sc_data = anndata.read_h5ad(sc_data)
         if isinstance(sc_data.X, np.ndarray):
@@ -43,24 +47,34 @@ def generate_simulated_data(sc_data, outname=None,
         else:
             sc_data.X = sc_data.X.toarray()
 
-        sc_data = pd.DataFrame(sc_data.X, index=sc_data.obs["CellType"], columns=sc_data.var.index)
-        sc_data.dropna(inplace=True)
-        sc_data['celltype'] = sc_data.index
-        sc_data.index = range(len(sc_data))
+        is_anndata = True
+
+        # sc_data = pd.DataFrame(sc_data.X, index=sc_data.obs["CellType"].astype('str'), columns=sc_data.var.index)
+        # sc_data.dropna(inplace=True)
+        # sc_data['celltype'] = sc_data.index
+        # sc_data.index = range(len(sc_data))
     else:
         raise Exception("Please check the format of single-cell data!")
     print('Reading dataset is done')
 
-    num_celltype = len(sc_data['celltype'].value_counts())
-    genename = sc_data.columns[:-1]
+    if is_anndata == False:
+        num_celltype = len(sc_data['celltype'].value_counts())
+        genename = sc_data.columns[:-1]
 
-    celltype_groups = sc_data.groupby('celltype').groups
-    sc_data.drop(columns='celltype', inplace=True)
+        celltype_groups = sc_data.groupby('celltype').groups
+        sc_data.drop(columns='celltype', inplace=True)
 
-    ### normalize with scanpy
-    print('Normalizing raw single cell data with scanpy.pp.normalize_total')
-    sc_data = anndata.AnnData(sc_data)
-    # sc.pp.normalize_total(sc_data, target_sum=1e4)
+        ### normalize with scanpy
+        print('Normalizing raw single cell data with scanpy.pp.normalize_total')
+        sc_data = anndata.AnnData(sc_data)
+        sc.pp.normalize_total(sc_data, target_sum=1e6)
+    else:
+        num_celltype = len(set(sc_data.obs['CellType']))
+        genename = sc_data.var_names
+        celltype_groups = sc_data.obs['CellType'].astype('str').reset_index().groupby('CellType').groups
+
+        print('Normalizing raw single cell data with scanpy.pp.normalize_total')
+        sc.pp.normalize_total(sc_data, target_sum=1e6)
 
     # use ndarray to accelerate
     # change to C_CONTIGUOUS, 10x faster
